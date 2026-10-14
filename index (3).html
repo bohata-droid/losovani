@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Náhodná čísla bez opakování</title>
+<meta name="description" content="Vylosujte tři různá čísla od 1 do 12. Velké číslice na bílé obrazovce pro promítání.">
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif}body{min-height:100svh;display:flex;flex-direction:column}header{padding:24px 32px;color:#666;font-size:16px;display:flex;justify-content:space-between;gap:20px}h1{font-size:16px;font-weight:400;margin:0}main{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 3vw}.numbers{width:100%;display:grid;grid-template-columns:repeat(3,1fr);text-align:center;font-weight:700;font-variant-numeric:tabular-nums;font-size:min(25vw,49vh);line-height:1.05;letter-spacing:-.05em}.numbers span{display:block}footer{padding:24px 20px 32px;text-align:center}nav{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}button{font:inherit;font-size:17px;padding:14px 24px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#111;cursor:pointer}button.primary{background:#111;color:#fff;border-color:#111;font-weight:600}button:hover{background:#eee}button.primary:hover{background:#333}button:focus-visible{outline:3px solid #3874cb;outline-offset:4px}.hint{color:#777;font-size:13px;margin:14px 0 0}.projecting header,.projecting footer{display:none}.projecting .numbers{font-size:min(27vw,65vh)}.exit{display:none;position:fixed;right:16px;bottom:16px;padding:10px 14px;opacity:0}.projecting .exit{display:block}.exit:hover,.exit:focus-visible{opacity:1}@media(max-width:500px){header{padding:20px;font-size:13px}h1{font-size:13px}.numbers{font-size:26vw}button{font-size:15px;padding:12px 18px}}@media(max-height:400px){header{padding:12px 20px}footer{padding:12px}.hint{margin-top:8px}.numbers{font-size:min(23vw,43vh)}}
+#settings{display:flex;justify-content:center;gap:18px;margin-bottom:18px}label{display:flex;flex-direction:column;gap:7px;text-align:left;font-size:14px;color:#555}input{width:160px;border:1px solid #bbb;border-radius:7px;padding:10px 12px;font:inherit;font-size:18px;color:#111;background:#fff}input:focus-visible{outline:3px solid #3874cb;outline-offset:2px}#error{color:#b42318;margin:0 0 14px;font-size:14px}#error:empty{display:none}main{overflow:hidden}.numbers{gap:0;letter-spacing:-.04em}.numbers span{white-space:nowrap}@media(max-width:400px){input{width:135px}#settings{gap:12px}}
+.numbers{display:flex;flex-direction:column}.number-row{display:flex;justify-content:center;width:100%}.number-row span{width:calc(100% / var(--cols,3));flex-shrink:0}
+</style>
+</head>
+<body>
+<header><h1>Náhodná čísla</h1><span id="summary">1–12 · bez opakování</span></header>
+<main title="Kliknutím vylosujete nová čísla"><div class="numbers" role="status" aria-live="polite" aria-atomic="true"><span>–</span><span>–</span><span>–</span></div></main>
+<footer><form id="settings"><label>Rozsah čísel<input id="range" type="text" value="1–12" placeholder="např. 1–12" required autocomplete="off" aria-describedby="error"></label><label>Počet čísel<input id="count" type="number" value="3" min="1" step="1" required aria-describedby="error"></label></form><p id="error" role="alert"></p><nav><button class="primary" id="draw">Vylosovat nová čísla</button><button id="present">Promítat přes celou obrazovku</button></nav><p class="hint">Mezerník = nové losování · F = promítání · Esc = návrat</p></footer>
+<button class="exit" id="exit" aria-label="Ukončit promítání">Ukončit promítání</button>
+<script>
+function randomBelow(n){const buf=new Uint32Array(1);const limit=Math.floor(4294967296/n)*n;do{crypto.getRandomValues(buf)}while(buf[0]>=limit);return buf[0]%n}
+function parseSettings(rangeText,countText){
+ const match=rangeText.trim().match(/^(-?\d+)\s*(?:–|—|\.\.|:|-|až)\s*(-?\d+)$/i);
+ if(!match)throw new Error('Zadejte rozsah ve tvaru 1–12 (nebo 1-12).');
+ const min=Number(match[1]),max=Number(match[2]),count=Number(countText),size=max-min+1;
+ if(!Number.isSafeInteger(min)||!Number.isSafeInteger(max)||min>max)throw new Error('Meze rozsahu musí být celá čísla, od menšího k většímu.');
+ if(!Number.isSafeInteger(size)||size>4294967296)throw new Error('Rozsah může obsahovat nejvýše 4 294 967 296 čísel.');
+ if(!Number.isSafeInteger(count)||count<1)throw new Error('Počet čísel musí být kladné celé číslo.');
+ if(count>size)throw new Error('V tomto rozsahu je jen '+size+' různých čísel. Snižte počet nebo rozšiřte rozsah.');
+ return {min,max,count,size};
+}
+function drawNumbers(min,max,count){
+ const size=max-min+1,swaps=new Map(),result=[];
+ for(let i=0;i<count;i++){const remaining=size-i,index=randomBelow(remaining),value=swaps.get(index)??index;swaps.set(index,swaps.get(remaining-1)??(remaining-1));swaps.delete(remaining-1);result.push(min+value)}
+ return result;
+}
+const rangeInput=document.getElementById('range'),countInput=document.getElementById('count'),error=document.getElementById('error'),numbers=document.querySelector('.numbers');
+function fitNumbers(){
+ const cells=numbers.querySelectorAll('span'),n=cells.length;if(!n)return;
+ const box=document.querySelector('main').getBoundingClientRect(),w=box.width*.94,h=Math.max(1,box.height-24);
+ const digits=Math.max(...Array.from(cells,el=>el.textContent.length));
+ const rows=Math.ceil(n/3),cols=Math.ceil(n/rows);
+ const font=Math.min(w/cols/(digits*.65+.12),h/rows/1.12);
+ numbers.style.setProperty('--cols',cols);numbers.style.fontSize=font+'px';
+}
+function balancedRowSizes(n){const rows=Math.ceil(n/3),base=Math.floor(n/rows),extra=n%rows;return Array.from({length:rows},(_,i)=>base+(i<extra?1:0))}
+function renderNumbers(result){let offset=0;const rows=balancedRowSizes(result.length).map(size=>{const row=document.createElement('div');row.className='number-row';for(let i=0;i<size;i++){const cell=document.createElement('span');cell.textContent=result[offset++];row.appendChild(cell)}return row});numbers.replaceChildren(...rows)}
+function draw(){
+ try{const {min,max,count}=parseSettings(rangeInput.value,countInput.value);const result=drawNumbers(min,max,count);renderNumbers(result);document.getElementById('summary').textContent=min+'–'+max+' · bez opakování';error.textContent='';fitNumbers();return true}
+ catch(e){error.textContent=e.message;return false}
+}
+async function present(){if(error.textContent&&!draw())return;document.body.classList.add('projecting');fitNumbers();try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen()}catch(e){}}
+async function exit(){document.body.classList.remove('projecting');fitNumbers();if(document.fullscreenElement)try{await document.exitFullscreen()}catch(e){}}
+document.getElementById('draw').addEventListener('click',draw);document.querySelector('main').addEventListener('click',draw);document.getElementById('present').addEventListener('click',present);document.getElementById('exit').addEventListener('click',exit);
+document.getElementById('settings').addEventListener('submit',e=>{e.preventDefault();draw()});[rangeInput,countInput].forEach(el=>el.addEventListener('change',draw));
+document.addEventListener('keydown',e=>{if(e.repeat||e.target.closest('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();draw()}else if(e.key.toLowerCase()==='f'){e.preventDefault();document.body.classList.contains('projecting')?exit():present()}else if(e.key==='Escape'){exit()}});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('projecting');fitNumbers()});window.addEventListener('resize',fitNumbers);draw();
+</script>
+</body></html>
